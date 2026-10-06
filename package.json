@@ -1,0 +1,12 @@
+{
+  "name": "theo-doi-dinh-duong-ghep-gan",
+  "version": "0.1.0",
+  "description": "Theo dõi dinh dưỡng trẻ ghép gan – tự tính Z-score theo chuẩn WHO (Bệnh viện Nhi Đồng 2)",
+  "private": true,
+  "scripts": {
+    "test": "node tests/zscore.test.js",
+    "start": "python3 -m http.server 8000",
+    "build:single": "python3 scripts/build_single.py"
+  },
+  "license": "MIT"
+}
