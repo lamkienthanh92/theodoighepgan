@@ -79,15 +79,15 @@ function Chart({p:p0,metric}){
   const p=derive(p0);
   const W=680,H=300,L=48,R=56,T=18,B=40;
   const C={waz:{k:'waz',lab:'WAZ',col:'var(--waz)',z:1},haz:{k:'haz',lab:'HAZ/LAZ',col:'var(--haz)',z:1},whz:{k:'whz',lab:'WHZ/BMIZ',col:'var(--whz)',z:1},
-    alb:{k:'alb',lab:'Albumin (g/L)',col:'var(--waz)',y:[20,50],dec:1,cut:35,cutLab:'35'},hb:{k:'hb',lab:'Hemoglobin (g/dL)',col:'var(--haz)',y:[6,16],dec:1},inr:{k:'inr',lab:'INR',col:'var(--whz)',y:[0.8,2.2],dec:2,cut:1.5,cutLab:'1,5'}}[metric];
+    alb:{k:'alb',lab:'Albumin (g/L)',col:'var(--waz)',y:[20,50],step:5,dec:1,cut:35,cutLab:'35'},hb:{k:'hb',lab:'Hemoglobin (g/dL)',col:'var(--haz)',y:[6,16],step:2,dec:1},inr:{k:'inr',lab:'INR',col:'var(--whz)',y:[0.8,2.2],step:0.2,dec:2,cut:1.5,cutLab:'1,5'}}[metric];
   const pts=MOCS.map((m,i)=>({i,v:num((p.v[m.k]||{})[C.k])})).filter(o=>o.v!=null);
   const ref=REF[C.k];
   let y0,y1;
   if(C.z){ const vals=pts.map(o=>o.v).concat(ref?Object.values(ref).flat():[]); y0=Math.min(-4,Math.floor(Math.min(...vals)-0.3)); y1=Math.max(1,Math.ceil(Math.max(...vals)+0.3)); }
   else [y0,y1]=C.y;
-  const xs=MOCS.map((m,i)=>L+i*(W-L-R)/(MOCS.length-1));
+  const PADX=28; const xs=MOCS.map((m,i)=>L+PADX+i*(W-L-R-PADX-12)/(MOCS.length-1));
   const Y=v=>T+(1-(Math.max(y0,Math.min(y1,v))-y0)/(y1-y0))*(H-T-B);
-  const el=[]; const n=C.z?(y1-y0):5, step=(y1-y0)/n;
+  const el=[]; const step=C.z?1:C.step, n=Math.round((y1-y0)/step);
   for(let i=0;i<=n;i++){const v=y0+i*step; el.push(h('line',{key:'g'+i,x1:L,x2:W-R,y1:Y(v),y2:Y(v),stroke:'var(--line)'}), h('text',{key:'gt'+i,x:L-10,y:Y(v)+4,textAnchor:'end',fontSize:12,fill:'var(--muted)'},fmt(v,C.z?0:(metric==='inr'?1:0))));}
   MOCS.forEach((m,i)=>el.push(h('text',{key:'x'+i,x:xs[i],y:H-B+22,textAnchor:'middle',fontSize:12.5,fill:'var(--muted)',fontWeight:600},m.lab)));
   const cutV=C.z?-2:C.cut, cutL=C.z?'−2SD':C.cutLab;
@@ -96,9 +96,18 @@ function Chart({p:p0,metric}){
     el.push(h('polygon',{key:'band',points:up.concat(lo).join(' '),fill:C.col,opacity:.13}));
     el.push(h('polyline',{key:'bm',points:ks.map((t,i)=>`${xs[i]},${Y(ref[t][0])}`).join(' '),fill:'none',stroke:C.col,strokeDasharray:'3 4',strokeWidth:1.6,opacity:.75}));}
   if(pts.length>1) el.push(h('polyline',{key:'ln',points:pts.map(o=>`${xs[o.i]},${Y(o.v)}`).join(' '),fill:'none',stroke:C.col,strokeWidth:3,strokeLinejoin:'round',strokeLinecap:'round'}));
-  pts.forEach((o,j)=>{ const above=ref&&ref['T'+[0,1,3,6][o.i]]?o.v>=ref['T'+[0,1,3,6][o.i]][0]:true;
+  // Vị trí nhãn: đặt phía trên nếu điểm cao hơn trung bình hai điểm kề (hoặc là điểm đầu/cuối cao hơn điểm kề), ngược lại đặt phía dưới; tránh đè lên đường ngưỡng
+  const cutY=cutV!=null?Y(cutV):null;
+  pts.forEach((o,j)=>{
+    const prev=pts[j-1], next=pts[j+1];
+    const nb=[prev,next].filter(Boolean).map(q=>q.v);
+    let above= nb.length? o.v>=nb.reduce((a,b)=>a+b,0)/nb.length : true;
+    let ly=Y(o.v)+(above?-14:24);
+    const clash=y=>cutY!=null&&Math.abs((y-5)-cutY)<11;
+    if(clash(ly)){ const alt=Y(o.v)+(above?24:-14); if(!clash(alt)&&alt>T+10&&alt<H-B-4){ly=alt;} else {ly=Y(o.v)+(above?-24:34);} }
+    ly=Math.max(T+12,Math.min(H-B-6,ly));
     el.push(h('circle',{key:'c'+o.i,cx:xs[o.i],cy:Y(o.v),r:5.5,fill:'#fff',stroke:C.col,strokeWidth:3}));
-    el.push(h('text',{key:'t'+o.i,x:xs[o.i],y:Y(o.v)+(above?-12:20),textAnchor:'middle',fontSize:12.5,fill:C.col,fontWeight:700,paintOrder:'stroke',stroke:'#fff',strokeWidth:4},fmt(o.v,C.dec||2)));});
+    el.push(h('text',{key:'t'+o.i,x:xs[o.i],y:ly,textAnchor:'middle',fontSize:13,fill:C.col,fontWeight:700,paintOrder:'stroke',stroke:'#fff',strokeWidth:5,strokeLinejoin:'round'},fmt(o.v,C.dec||2)));});
   if(!pts.length) el.push(h('text',{key:'none',x:W/2,y:H/2,textAnchor:'middle',fontSize:14,fill:'var(--muted)'},'Chưa có số liệu cho chỉ số này'));
   return h('div',null,h('svg',{className:'chart',viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':'Biểu đồ diễn tiến '+C.lab},el),
     h('div',{className:'legend'},h('span',null,h('i',{style:{background:C.col}}),C.lab+' của bệnh nhi'),
